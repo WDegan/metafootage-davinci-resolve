@@ -1,123 +1,158 @@
-Metafootage – AI-Powered Metadata for DaVinci Resolve
+# Metafootage – AI-Powered Metadata for DaVinci Resolve
 
-Metafootage is a lightweight DaVinci Resolve scripting plugin that uses Google’s Gemini Vision API to analyze video clips and automatically generate rich, cinematic metadata.
+Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses **Google’s Gemini Vision API** to analyze video clips and automatically generate rich, cinematic metadata.
 
-It turns unlogged clips into searchable, organized assets by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
+It turns unlogged clips into **searchable, organized assets** by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
 
-This project is focused on editorial workflow speed and organization, not on building a commercial product.
+This project is focused on **editorial workflow speed and organization**, not on building a commercial product.
 
-Why Metafootage?
+---
 
-Manual logging does not scale. When you are working with dozens or hundreds of clips, writing descriptions and keywords by hand becomes a bottleneck.
+## Why I Made This
 
-Metafootage automates that step so you can spend time editing instead of labeling.
+I built Metafootage while working on long-form documentary projects.
 
-Key capabilities
+Manual logging does not scale. When you’re dealing with dozens—or hundreds—of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
 
-Cinematic analysis
+Metafootage automates that step so you can spend time **thinking about the story**, not labeling files.
+
+---
+
+## Key Capabilities
+
+### Cinematic analysis
+
 Extracts representative frames from each clip and generates detailed descriptions covering lighting, camera movement, subject action, emotion, and setting.
 
-Smart metadata merging
+### Smart metadata merging
+
 Preserves any existing keywords or notes on your clips and appends new AI-generated metadata instead of overwriting your work.
 
-Model selection
+### Model selection
+
 Supports faster, lower-cost analysis for b-roll and dailies, as well as higher-quality reasoning for hero shots and complex scenes.
 
-Proxy-aware
-Detects common raw formats such as BRAW, R3D, and ARRIRAW and analyzes proxies when available so the AI sees a properly graded image instead of flat log footage.
+### Proxy-aware
 
-Privacy-conscious
+Detects common raw formats such as **BRAW**, **R3D**, and **ARRIRAW**, and analyzes proxies when available so the AI sees a properly graded image instead of flat log footage.
+
+### Privacy-conscious
+
 Frames are sent directly to the Gemini API for analysis. No footage is stored or retained by Metafootage beyond the API request.
 
-What’s Included
+---
+
+## What’s Included
 
 This package is intentionally minimal.
 
-Metafootage.py
-The DaVinci Resolve script. This is the only file Resolve needs.
+* **`Metafootage.py`**
+  The DaVinci Resolve script. This is the only file Resolve needs.
 
-README.md
-Installation and usage instructions.
+* **`README.md`**
+  Installation and usage instructions.
 
-LICENSE
-MIT License.
+* **`LICENSE`**
+  MIT License.
 
-Requirements
+---
 
-DaVinci Resolve (Studio or Free)
+## Requirements
 
-Python 3.6+ (used by Resolve scripting)
+* **DaVinci Resolve** (Studio or Free)
+* **Python 3.6+** (used by Resolve scripting)
+* **FFmpeg** (used to extract frames from clips)
+* **Google Gemini API key**
 
-FFmpeg (used to extract frames from clips)
+---
 
-Google Gemini API key
+## Installing FFmpeg
 
-Installing FFmpeg
+### Windows
 
-Windows
+```bash
 winget install ffmpeg
+```
 
-macOS
+### macOS
+
+```bash
 brew install ffmpeg
+```
 
-Linux
-Install via your system package manager (e.g. apt install ffmpeg)
+### Linux
 
-Installation (DaVinci Resolve)
+Install via your system package manager (for example):
 
-Copy Metafootage.py to your Resolve Scripts folder:
+```bash
+apt install ffmpeg
+```
 
-Windows
+---
 
-%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit\
+## Installation (DaVinci Resolve)
 
+1. Copy **`Metafootage.py`** to your Resolve Scripts folder:
 
-macOS
+   **Windows**
 
-~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/
+   ```
+   %APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Edit\
+   ```
 
+   **macOS**
 
-Linux
+   ```
+   ~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/
+   ```
 
-/opt/resolve/Fusion/Scripts/Edit/
+   **Linux**
 
+   ```
+   /opt/resolve/Fusion/Scripts/Edit/
+   ```
 
-Restart DaVinci Resolve.
+2. Restart **DaVinci Resolve**.
 
-Select one or more clips in the Media Pool.
+3. Select one or more clips in the **Media Pool**.
 
-Run the script from:
-Workspace → Scripts → Metafootage
+4. Run the script from:
+   **Workspace → Scripts → Metafootage**
 
-On first run, you will be prompted to enter your Gemini API key.
-The key is stored locally on your machine.
+5. On first run, you will be prompted to enter your **Gemini API key**.
+   The key is stored locally on your machine.
 
-How It Works
+---
 
-Metafootage extracts a small number of representative frames from each selected clip.
+## How It Works
 
-The frames are sent to the Gemini Vision API for analysis.
-
-The AI returns structured descriptions and keywords.
-
-Metadata is written directly into Resolve’s clip metadata fields.
-
-Existing metadata is preserved and augmented—not overwritten.
+1. Metafootage extracts a small number of representative frames from each selected clip.
+2. Frames are sent to the Gemini Vision API for analysis.
+3. The AI returns structured descriptions and keywords.
+4. Metadata is written directly into Resolve’s clip metadata fields.
+5. Existing metadata is preserved and augmented—not overwritten.
 
 Once processed, clips become instantly searchable using Resolve’s metadata filters.
 
-Contributing
+---
+
+## Contributing
 
 This is a personal side project, but contributions are welcome.
 
-If you find a bug or have an idea for improvement, open an issue.
-Pull requests are encouraged—keep them focused and well-scoped.
+If you find a bug or have an idea for improvement, feel free to open an issue.
+Pull requests are encouraged—please keep them focused and well-scoped.
 
-License
+---
 
-Released under the MIT License.
-See the LICENSE file for details.
+## License
 
-Author
+Released under the **MIT License**.
+See the `LICENSE` file for details.
 
-Created by Wayne Degan
+---
+
+## Author
+
+Created by **Wayne Degan**
+
