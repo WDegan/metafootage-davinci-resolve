@@ -1,6 +1,6 @@
 # Metafootage – AI-Powered Metadata for DaVinci Resolve
 
-Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses **Google’s Gemini Vision API** to analyze video clips and automatically generate rich, cinematic metadata.
+Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses **Google’s Gemini Vision API**  or **OpenAI*to analyze video clips and automatically generate rich, cinematic metadata.
 
 It turns unlogged clips into **searchable, organized assets** by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
 
