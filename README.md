@@ -12,7 +12,7 @@ This project is focused on **editorial workflow speed and organization**, not on
 
 I built Metafootage while working on long-form documentary projects.
 
-Manual logging does not scale. When you’re dealing with dozens—or hundreds—of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
+Manual logging does not scale. When you’re dealing with dozens or hundreds of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
 
 Metafootage automates that step so you can spend time **thinking about the story**, not labeling files.
 
