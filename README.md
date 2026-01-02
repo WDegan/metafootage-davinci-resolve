@@ -5,7 +5,8 @@ Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses **Go
 It turns unlogged clips into **searchable, organized assets** by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
 
 This project is focused on **editorial workflow speed and organization**, not on building a commercial product.
-
+ 
+----
 
 https://github.com/WDegan/metafootage-davinci-resolve/raw/main/media/metafootage-demo.mp4
 
