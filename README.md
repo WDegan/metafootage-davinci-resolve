@@ -10,6 +10,9 @@ This project is focused on **editorial workflow speed and organization**, not on
 ## Automatic Metadata Generation
 
 ![Metafootage automatically generating metadata in DaVinci Resolve](media/metafootage-demo.gif)
+
+![Metafootage BRAW proxy workflow demo](media/metafootage-demo-2.gif)
+
 ---
 
 ## Why I Made This
