@@ -7,6 +7,10 @@ It turns unlogged clips into **searchable, organized assets** by writing AI-gene
 This project is focused on **editorial workflow speed and organization**, not on building a commercial product.
  
 ---
+## Automatic Metadata Generation
+
+![Metafootage automatically generating metadata in DaVinci Resolve](media/metafootage-demo.gif)
+---
 
 ## Why I Made This
 
