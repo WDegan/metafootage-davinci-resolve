@@ -6,16 +6,7 @@ It turns unlogged clips into **searchable, organized assets** by writing AI-gene
 
 This project is focused on **editorial workflow speed and organization**, not on building a commercial product.
  
-
-
-<video src="https://github.com/WDegan/metafootage-davinci-resolve/raw/main/media/metafootage-demo.mp4" 
-       controls 
-       muted 
-       loop 
-       playsinline 
-       width="100%">
-</video>
-
+---
 
 ## Why I Made This
 
