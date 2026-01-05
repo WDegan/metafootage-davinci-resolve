@@ -253,11 +253,13 @@ def main():
     clips = project.GetMediaPool().GetSelectedClips() if project else []
     
     if not clips:
-        err_win = disp.AddWindow({'WindowTitle': 'Error', 'Geometry': [500, 400, 320, 120]}, [
+        err_win = disp.AddWindow({'WindowTitle': 'Error', 'Geometry': [500, 400, 320, 160]}, [
             ui.VGroup([
                 ui.Label({'Text': 'Please select clips in the Media Pool first.', 'Alignment': {'AlignHCenter': True}, 'WordWrap': True}),
                 ui.VGap(10),
-                ui.Button({'ID': 'OkBtn', 'Text': 'OK'})
+                ui.Button({'ID': 'OkBtn', 'Text': 'OK'}),
+                ui.VGap(5),
+                ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'})
             ])
         ])
         err_win.On.OkBtn.Clicked = lambda ev: disp.ExitLoop()
@@ -267,7 +269,7 @@ def main():
         err_win.Hide()
         return
 
-    win = disp.AddWindow({'WindowTitle': 'Metafootage AI', 'ID': 'MainWin', 'Geometry': [400, 300, 500, 560]}, [
+    win = disp.AddWindow({'WindowTitle': 'Metafootage AI', 'ID': 'MainWin', 'Geometry': [400, 300, 500, 600]}, [
         ui.VGroup([
             ui.Label({'Text': 'Metafootage', 'StyleSheet': 'font-size: 24px; font-weight: bold; color: #60a5fa;'}),
             ui.Label({'Text': f'Selected Clips: {len(clips)}', 'StyleSheet': 'color: #9ca3af;'}),
@@ -297,6 +299,8 @@ def main():
                 ui.Button({'ID': 'CancelBtn', 'Text': 'Cancel'}),
                 ui.Button({'ID': 'ProcessBtn', 'Text': 'Start Processing', 'StyleSheet': 'background-color: #2563eb; color: white; height: 40px; font-weight: bold;'}),
             ]),
+            ui.VGap(10),
+            ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'})
         ])
     ])
 
@@ -401,8 +405,10 @@ def main():
     if error_log:
         report_layout.append(ui.TextEdit({'Text': "\\n".join(error_log), 'ReadOnly': True, 'Weight': 1, 'StyleSheet': 'background: #1f2937; color: #f87171;'}))
     report_layout.append(ui.Button({'ID': 'CloseBtn', 'Text': 'Close Report'}))
+    report_layout.append(ui.VGap(5))
+    report_layout.append(ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'}))
 
-    report_win = disp.AddWindow({'WindowTitle': 'Metafootage Report', 'ID': 'RepWin', 'Geometry': [400, 300, 500, 400]}, [ui.VGroup(report_layout)])
+    report_win = disp.AddWindow({'WindowTitle': 'Metafootage Report', 'ID': 'RepWin', 'Geometry': [400, 300, 500, 450]}, [ui.VGroup(report_layout)])
     report_win.On.CloseBtn.Clicked = lambda ev: disp.ExitLoop()
     report_win.On.RepWin.Close = lambda ev: disp.ExitLoop()
     report_win.Show()
