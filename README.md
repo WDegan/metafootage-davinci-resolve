@@ -44,6 +44,37 @@ All processing runs from your machine. Media is not stored by Metafootage beyond
 
 ---
 
+## API Keys & Privacy
+
+Metafootage supports multiple ways to provide API keys. Nothing is sent unless you explicitly run analysis.
+
+### Supported methods (priority order)
+
+1. **Environment variables (recommended)**
+   - OpenAI: `OPENAI_API_KEY`
+   - Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+
+2. **Session-only keys**
+   - Paste a key for the current session without saving it to disk.
+
+3. **Saved keys (optional)**
+   - Keys can be stored locally only if explicitly enabled.
+
+If an environment variable is present, the API key field can be left blank.  
+The UI will indicate which source is being used (env var, session, or saved).
+
+### What gets sent to the API
+
+- A small set of representative frames per clip (3 / 5 / 7)
+- No full video files
+- No audio
+- No timelines or project data
+
+Keys are never logged or printed.  
+If you prefer maximum isolation, use environment variables or session-only keys.
+
+----
+
 ## Requirements
 
 - **DaVinci Resolve** (Studio or Free)  
