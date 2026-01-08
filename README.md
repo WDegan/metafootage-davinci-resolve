@@ -2,7 +2,7 @@
 
 Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses Google’s Gemini Vision API or OpenAI to analyze video clips and automatically generate rich, cinematic metadata.
 
-It turns unlogged clips into **searchable, organized assets** by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
+It turns unlogged clips into searchable, organized assets by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
 
 ## User Interface
 
@@ -19,9 +19,9 @@ It turns unlogged clips into **searchable, organized assets** by writing AI-gene
 
 I built Metafootage while working on long-form documentary projects.
 
-Manual logging does not scale. When you’re dealing with dozens or hundreds of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
+When you’re dealing with dozens or hundreds of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
 
-Metafootage automates that step so you can spend time **thinking about the story**, not labeling files.
+The idea is to automate that step so you can spend time thinking about the story, not labeling files.
 
 ---
 
@@ -39,13 +39,14 @@ Preserves any existing keywords or notes on your clips and appends new AI-genera
 
 Supports faster, lower-cost analysis for b-roll and dailies, as well as higher-quality reasoning for hero shots and complex scenes.
 
-### Proxy-aware
+### Works with RAW formats and proxies
 
-Detects common raw formats such as **BRAW**, **R3D**, and **ARRIRAW**, and analyzes proxies when available so the AI sees a properly graded image instead of flat log footage.
+Supports RAW formats such as **BRAW**, **R3D**, and **ARRIRAW** by analyzing associated proxy media. You can optionally specify a proxy root directory in the UI, allowing the tool to locate and analyze proxy files when working with RAW footage.
+That’s the cleanest and most honest version.
 
 ### Privacy-conscious
 
-Frames are sent directly to the Gemini API for analysis. No footage is stored or retained by Metafootage beyond the API request.
+Frames are sent directly to the Gemini or OpenAI API for analysis. No footage is stored or retained by Metafootage beyond the API request.
 
 ---
 
@@ -126,7 +127,7 @@ apt install ffmpeg
 4. Run the script from:
    **Workspace → Scripts → Metafootage**
 
-5. On first run, you will be prompted to enter your **Gemini API key**.
+5. On first run, you will need to to enter your **Gemini or Open API key**.
    The key is stored locally on your machine.
 
 ---
@@ -134,7 +135,7 @@ apt install ffmpeg
 ## How It Works
 
 1. Metafootage extracts a small number of representative frames from each selected clip.
-2. Frames are sent to the Gemini Vision API for analysis.
+2. Frames are sent to the Gemini Vision or OpenAI API for analysis.
 3. The AI returns structured descriptions and keywords.
 4. Metadata is written directly into Resolve’s clip metadata fields.
 5. Existing metadata is preserved and augmented—not overwritten.
@@ -145,11 +146,7 @@ Once processed, clips become instantly searchable using Resolve’s metadata fil
 
 ## Contributing
 
-This is a personal side project, but contributions are welcome.
-
-If you find a bug or have an idea for improvement, feel free to open an issue.
-Pull requests are encouraged—please keep them focused and well-scoped.
-
+If you find this helpful and it saved you time, contributions are welcome but not expected. 
 ---
 
 ## License
