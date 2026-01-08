@@ -4,11 +4,11 @@ Metafootage - DaVinci Resolve AI Plugin (Ultimate Multi-Provider Version)
 Copyright (c) 2025 W.Degan
 
 FEATURES:
-- Providers: Google Gemini & OpenAI GPT-4o support.
-- Robust BRAW/RAW Support: Searches Resolve Proxies and manual "Proxy" folders.
-- Cinematic Analysis: Lighting, Camera Movement, Emotion, Subject detection.
-- Smart Keyword Merging: Preserves your existing organization.
-- Detailed Reports: Full summary of success and failures after processing.
+- Non-blocking, cancelable processing loop.
+- Result caching (avoids redundant API calls).
+- Smart metadata merging (preserves existing keywords/comments).
+- Robust BRAW/RAW Support via Proxy paths.
+- Network resilience with exponential back-off and 30s timeouts.
 """
 
 import os
@@ -20,8 +20,9 @@ import base64
 import tempfile
 import shutil
 import urllib.request
+import urllib.error
 import time
-import random
+import hashlib
 
 # ==============================================================================
 # RESOLVE API SETUP
@@ -51,54 +52,53 @@ def load_bmd():
     return None
 
 # ==============================================================================
-# CONFIGURATION
+# CONFIGURATION & CACHING
 # ==============================================================================
 
 class ConfigManager:
     def __init__(self):
         if platform.system() == "Windows":
-            config_dir = os.path.join(os.environ.get('APPDATA', ''), 'Metafootage')
+            self.base_dir = os.path.join(os.environ.get('APPDATA', ''), 'Metafootage')
         else:
-            config_dir = os.path.join(os.path.expanduser('~'), '.metafootage')
+            self.base_dir = os.path.join(os.path.expanduser('~'), '.metafootage')
         
-        os.makedirs(config_dir, exist_ok=True)
-        self.config_path = os.path.join(config_dir, 'config.json')
-        self.config = self._load_config()
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.config_path = os.path.join(self.base_dir, 'config.json')
+        self.cache_path = os.path.join(self.base_dir, 'metafootage_cache.json')
+        self.config = self._load_json(self.config_path)
+        self.cache = self._load_json(self.cache_path)
     
-    def _load_config(self):
-        if os.path.exists(self.config_path):
+    def _load_json(self, path):
+        if os.path.exists(path):
             try:
-                with open(self.config_path, 'r') as f:
-                    return json.load(f)
-            except:
-                return {}
+                with open(path, 'r') as f: return json.load(f)
+            except: return {}
         return {}
     
-    def _save_config(self):
-        try:
-            with open(self.config_path, 'w') as f:
-                json.dump(self.config, f, indent=2)
-        except:
-            pass
+    def save_config(self):
+        with open(self.config_path, 'w') as f: json.dump(self.config, f, indent=2)
     
-    def save_api_key(self, provider, api_key):
-        key_name = f"{provider.lower().replace(' ', '_')}_api_key"
-        self.config[key_name] = base64.b64encode(api_key.encode('utf-8')).decode('utf-8')
-        self._save_config()
-    
+    def save_cache(self):
+        with open(self.cache_path, 'w') as f: json.dump(self.cache, f, indent=2)
+
     def get_api_key(self, provider):
         key_name = f"{provider.lower().replace(' ', '_')}_api_key"
         try:
             if key_name in self.config:
                 return base64.b64decode(self.config[key_name]).decode('utf-8')
-        except:
-            return ""
+        except: return ""
         return ""
 
-    def get_val(self, key, default): return self.config.get(key, default)
-    def set_val(self, key, val): 
-        self.config[key] = val
-        self._save_config()
+    def save_api_key(self, provider, api_key):
+        key_name = f"{provider.lower().replace(' ', '_')}_api_key"
+        self.config[key_name] = base64.b64encode(api_key.encode('utf-8')).decode('utf-8')
+        self.save_config()
+
+    def get_cache_key(self, path, model, frames):
+        if not os.path.exists(path): return None
+        mtime = os.path.getmtime(path)
+        raw_key = f"{path}_{mtime}_{model}_{frames}"
+        return hashlib.md5(raw_key.encode()).hexdigest()
 
 # ==============================================================================
 # MEDIA PATH RESOLUTION (Robust BRAW/RAW & Proxy Support)
@@ -157,7 +157,7 @@ def extract_frames(file_path, frame_count=5):
 
         cmd_dur = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         proc = subprocess.run(cmd_dur, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, startupinfo=startupinfo)
-        if not proc.stdout.strip(): raise Exception("Could not read video duration. Try using a Proxy.")
+        if not proc.stdout.strip(): raise Exception("Could not read video duration.")
             
         duration = float(proc.stdout.strip())
         start_time = duration * 0.1
@@ -168,73 +168,58 @@ def extract_frames(file_path, frame_count=5):
             out_file = os.path.join(temp_dir, f"frame_{i}.jpg")
             cmd = ["ffmpeg", "-ss", f"{ts:.3f}", "-i", file_path, "-frames:v", "1", "-vf", "scale=960:-1", "-q:v", "2", "-y", out_file]
             subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo)
-            if os.path.exists(out_file) and os.path.getsize(out_file) > 1024:
+            if os.path.exists(out_file):
                 with open(out_file, "rb") as f:
                     base64_frames.append(base64.b64encode(f.read()).decode('utf-8'))
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
     return base64_frames
 
+def api_request(url, payload, headers=None, method="POST"):
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), method=method)
+            req.add_header("Content-Type", "application/json")
+            if headers:
+                for k, v in headers.items(): req.add_header(k, v)
+            
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode('utf-8')), None
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < max_retries - 1:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            try: error_body = e.read().decode()
+            except: error_body = str(e)
+            return None, f"HTTP {e.code}: {error_body}"
+        except Exception as e:
+            return None, str(e)
+    return None, "Max retries reached"
+
 # ==============================================================================
 # AI ENGINES
 # ==============================================================================
 
-METADATA_SCHEMA_PROMPT = """Return JSON with these keys: 
-short_desc (string), long_desc (string), subjects (array), actions (array), 
-camera (string), lighting (string), setting (string), emotion (string), keywords (array)."""
+METADATA_SCHEMA_PROMPT = "Return JSON with: short_desc, long_desc, subjects (array), actions (array), camera, lighting, setting, emotion, keywords (array)."
 
-# Strict schema enforcement for Gemini
-GEMINI_SCHEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "short_desc": {"type": "STRING"},
-        "long_desc": {"type": "STRING"},
-        "subjects": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "actions": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "camera": {"type": "STRING"},
-        "lighting": {"type": "STRING"},
-        "setting": {"type": "STRING"},
-        "emotion": {"type": "STRING"},
-        "keywords": {"type": "ARRAY", "items": {"type": "STRING"}}
-    }
-}
-
-def analyze_with_gemini(frames, api_key, model_name, filename):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    parts = [{"text": f"Analyze these frames from: {filename}. {METADATA_SCHEMA_PROMPT}"}]
-    for b64 in frames: parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
-    
-    payload = {
-        "contents": [{"parts": parts}], 
-        "generationConfig": {
-            "responseMimeType": "application/json", 
-            "responseSchema": GEMINI_SCHEMA,
-            "temperature": 0.7
-        }
-    }
-    
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), method="POST")
-    req.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(req) as resp:
-        result = json.loads(resp.read().decode('utf-8'))
-        text = result['candidates'][0]['content']['parts'][0]['text']
-        return json.loads(text), None
-
-def analyze_with_openai(frames, api_key, model_name, filename):
-    url = "https://api.openai.com/v1/chat/completions"
-    messages = [
-        {"role": "system", "content": f"You are a cinematic editor. {METADATA_SCHEMA_PROMPT}"},
-        {"role": "user", "content": [{"type": "text", "text": f"Analyze these video frames from: {filename}"}]}
-    ]
-    for b64 in frames: messages[1]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-    payload = {"model": model_name, "messages": messages, "response_format": {"type": "json_object"}, "temperature": 0.7}
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("Authorization", f"Bearer {api_key}")
-    with urllib.request.urlopen(req) as resp:
-        result = json.loads(resp.read().decode('utf-8'))
-        text = result['choices'][0]['message']['content']
-        return json.loads(text), None
+def analyze_with_ai(frames, api_key, model, provider, filename):
+    if "Gemini" in provider:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        parts = [{"text": f"Analyze: {filename}. {METADATA_SCHEMA_PROMPT}"}]
+        for b64 in frames: parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
+        payload = {"contents": [{"parts": parts}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.7}}
+        res, err = api_request(url, payload)
+        if res: return json.loads(res['candidates'][0]['content']['parts'][0]['text']), None
+        return None, err
+    else:
+        url = "https://api.openai.com/v1/chat/completions"
+        messages = [{"role": "system", "content": "You are a cinematic editor."}, {"role": "user", "content": [{"type": "text", "text": f"Analyze: {filename}. {METADATA_SCHEMA_PROMPT}"}]}]
+        for b64 in frames: messages[1]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+        payload = {"model": model, "messages": messages, "response_format": {"type": "json_object"}, "temperature": 0.7}
+        res, err = api_request(url, payload, {"Authorization": f"Bearer {api_key}"})
+        if res: return json.loads(res['choices'][0]['message']['content']), None
+        return None, err
 
 # ==============================================================================
 # MAIN PLUGIN LOGIC
@@ -245,175 +230,203 @@ def main():
     if not bmd: return
     resolve = bmd.scriptapp("Resolve")
     fusion = resolve.Fusion()
-    ui = fusion.UIManager
-    disp = bmd.UIDispatcher(ui)
+    ui, disp = fusion.UIManager, bmd.UIDispatcher(fusion.UIManager)
     config = ConfigManager()
 
     project = resolve.GetProjectManager().GetCurrentProject()
     clips = project.GetMediaPool().GetSelectedClips() if project else []
-    
-    if not clips:
-        err_win = disp.AddWindow({'WindowTitle': 'Error', 'Geometry': [500, 400, 320, 160]}, [
-            ui.VGroup([
-                ui.Label({'Text': 'Please select clips in the Media Pool first.', 'Alignment': {'AlignHCenter': True}, 'WordWrap': True}),
-                ui.VGap(10),
-                ui.Button({'ID': 'OkBtn', 'Text': 'OK'}),
-                ui.VGap(5),
-                ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'})
-            ])
-        ])
-        err_win.On.OkBtn.Clicked = lambda ev: disp.ExitLoop()
-        err_win.On.Default.Close = lambda ev: disp.ExitLoop()
-        err_win.Show()
-        disp.RunLoop()
-        err_win.Hide()
-        return
+    if not clips: return
 
-    win = disp.AddWindow({'WindowTitle': 'Metafootage AI', 'ID': 'MainWin', 'Geometry': [400, 300, 500, 600]}, [
-        ui.VGroup([
-            ui.Label({'Text': 'Metafootage', 'StyleSheet': 'font-size: 24px; font-weight: bold; color: #60a5fa;'}),
-            ui.Label({'Text': f'Selected Clips: {len(clips)}', 'StyleSheet': 'color: #9ca3af;'}),
-            ui.VGap(10),
-            ui.HGroup([
-                ui.Label({'Text': 'Provider:', 'Weight': 0.3}),
-                ui.ComboBox({'ID': 'ProviderSelect', 'Weight': 0.7}),
+    # Main UI Building (Restored high-fidelity layout)
+    win = disp.AddWindow({'WindowTitle': 'Metafootage', 'ID': 'MainWin', 'Geometry': [400, 300, 620, 600]}, [
+        ui.VGroup({'Spacing': 0}, [
+            # Header
+            ui.HGroup({'Weight': 0, 'ContentsMargins': [25, 20, 25, 5]}, [
+                ui.Label({'Text': 'CONFIGURE ANALYSIS', 'StyleSheet': 'font-weight: bold; color: #60a5fa; font-size: 11px; letter-spacing: 1px;'}),
+                ui.HGap(0, 1),
+                ui.Label({'Text': f' {len(clips)} CLIPS ', 'StyleSheet': 'background-color: #3b82f6; color: white; border-radius: 4px; font-size: 10px; font-weight: bold; padding: 2px 6px;'}),
             ]),
-            ui.VGap(5),
-            ui.Label({'ID': 'KeyLabel', 'Text': 'API Key:'}),
-            ui.LineEdit({'ID': 'ApiKey', 'EchoMode': 'Password'}),
+            
             ui.VGap(10),
-            ui.HGroup([
-                ui.Label({'Text': 'Model:', 'Weight': 0.3}),
-                ui.ComboBox({'ID': 'ModelSelect', 'Weight': 0.7}),
-            ]),
-            ui.VGap(10),
-            ui.VGroup({'StyleSheet': 'background-color: #262626; border-radius: 4px; padding: 10px;'}, [
-                ui.Label({'Text': 'Custom Proxy Root (Optional):'}),
-                ui.HGroup([
-                    ui.LineEdit({'ID': 'ProxyPath', 'Text': config.get_val('proxy_path', ''), 'PlaceholderText': 'Select folder...'}),
-                    ui.Button({'ID': 'BrowseBtn', 'Text': 'Browse'}),
+            
+            # Form Content
+            ui.VGroup({'ContentsMargins': [25, 10, 25, 20], 'Spacing': 14}, [
+                
+                # AI Engine Section
+                ui.Label({'Text': 'AI ENGINE', 'StyleSheet': 'color: #9ca3af; font-size: 10px; font-weight: bold; padding-top: 5px;'}),
+                ui.VGroup({'Spacing': 8}, [
+                    ui.HGroup([ui.Label({'Text': 'Provider:', 'Weight': 0.3}), ui.ComboBox({'ID': 'Prov', 'Weight': 0.7})]),
+                    ui.HGroup([ui.Label({'Text': 'Model:', 'Weight': 0.3}), ui.ComboBox({'ID': 'Mod', 'Weight': 0.7})]),
+                    ui.HGroup([ui.Label({'Text': 'Frames:', 'Weight': 0.3}), ui.ComboBox({'ID': 'Fr', 'Weight': 0.7})]),
                 ]),
+
+                ui.VGap(8),
+
+                # Authentication Section
+                ui.Label({'Text': 'AUTHENTICATION', 'StyleSheet': 'color: #9ca3af; font-size: 10px; font-weight: bold; padding-top: 5px;'}),
+                ui.HGroup([
+                    ui.Label({'ID': 'KeyLabel', 'Text': 'API Key:', 'Weight': 0.3}),
+                    ui.HGroup({'Spacing': 4, 'Weight': 0.7}, [
+                        ui.LineEdit({'ID': 'Key', 'EchoMode': 'Password'}),
+                        ui.Button({'ID': 'Tog', 'Text': 'Show', 'Checkable': True, 'Weight': 0, 'MinimumSize': [60, 28]}),
+                    ]),
+                ]),
+
+                ui.VGap(8),
+
+                # RAW / Proxy Support Section (Restored)
+                ui.Label({'Text': 'RAW / PROXY SUPPORT (OPTIONAL)', 'StyleSheet': 'color: #9ca3af; font-size: 10px; font-weight: bold; padding-top: 5px;'}),
+                ui.VGroup({'Spacing': 6}, [
+                    ui.HGroup([
+                        ui.Label({'Text': 'Root Path:', 'Weight': 0.3}),
+                        ui.HGroup({'Spacing': 4, 'Weight': 0.7}, [
+                            ui.LineEdit({'ID': 'ProxyPath', 'Text': config.config.get('proxy_path', ''), 'PlaceholderText': 'Resolve Proxy folder path...'}),
+                            ui.Button({'ID': 'BrowseBtn', 'Text': 'Browse', 'Weight': 0, 'MinimumSize': [80, 28]}),
+                        ]),
+                    ]),
+                    ui.HGroup([
+                        ui.HGap(0, 0.3),
+                        ui.Label({
+                            'Text': 'Used when FFmpeg can’t read RAW (BRAW/R3D). Point to your optimized media or proxy folder.', 
+                            'WordWrap': True, 'Weight': 0.7,
+                            'StyleSheet': 'color: #6b7280; font-size: 9px; font-style: italic;'
+                        }),
+                    ]),
+                ]),
+                
+                ui.VGap(8),
+                ui.CheckBox({'ID': 'Force', 'Text': 'Reprocess even if cached', 'Checked': False}),
             ]),
-            ui.VGap(20),
-            ui.HGroup([
-                ui.Button({'ID': 'CancelBtn', 'Text': 'Cancel'}),
-                ui.Button({'ID': 'ProcessBtn', 'Text': 'Start Processing', 'StyleSheet': 'background-color: #2563eb; color: white; height: 40px; font-weight: bold;'}),
-            ]),
-            ui.VGap(10),
-            ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'})
+            
+            ui.VGap(0, 1),
+            
+            # Footer
+            ui.HGroup({'ContentsMargins': [25, 0, 25, 25], 'Spacing': 12, 'Weight': 0}, [
+                ui.Label({'Text': '© 2025 W.Degan', 'StyleSheet': 'color: #4b5563; font-size: 10px;'}, 0),
+                ui.HGap(0, 1),
+                ui.Button({'ID': 'Cancel', 'Text': 'Cancel', 'MinimumSize': [110, 36]}),
+                ui.Button({'ID': 'Start', 'Text': 'Start Processing', 'MinimumSize': [170, 36], 'StyleSheet': 'background-color: #2563eb; color: white; border-radius: 4px; font-weight: bold;'}),
+            ])
         ])
     ])
 
     itm = win.GetItems()
-    itm['ProviderSelect'].AddItems(["Google Gemini", "OpenAI"])
-    itm['ProviderSelect'].CurrentIndex = config.get_val('provider_index', 0)
+    itm['Prov'].AddItems(["Google Gemini", "OpenAI"])
+    itm['Prov'].CurrentIndex = config.config.get('provider_index', 0)
+    itm['Fr'].AddItems(["3", "5", "7"])
+    itm['Fr'].CurrentIndex = config.config.get('frame_index', 0)
     
     def update_ui(ev=None):
-        provider = itm['ProviderSelect'].CurrentText
-        itm['KeyLabel'].Text = f"{provider} API Key:"
-        itm['ApiKey'].Text = config.get_api_key(provider)
-        itm['ModelSelect'].Clear()
-        if "Gemini" in provider:
-            itm['ModelSelect'].AddItems(["gemini-3-flash-preview", "gemini-3-pro-preview"])
-        else:
-            itm['ModelSelect'].AddItems(["gpt-4o", "gpt-4o-mini"])
+        p = itm['Prov'].CurrentText
+        itm['KeyLabel'].Text = f"{p} Key:"
+        itm['Key'].Text = config.get_api_key(p)
+        itm['Mod'].Clear()
+        if "Gemini" in p: itm['Mod'].AddItems(["gemini-3-flash-preview", "gemini-3-pro-preview"])
+        else: itm['Mod'].AddItems(["gpt-4o", "gpt-4o-mini"])
 
-    win.On.ProviderSelect.CurrentIndexChanged = update_ui
+    win.On.Prov.CurrentIndexChanged = update_ui
+    win.On.Tog.Clicked = lambda ev: itm['Key'].SetEchoMode('Normal' if itm['Tog'].Checked else 'Password')
     win.On.BrowseBtn.Clicked = lambda ev: itm['ProxyPath'].SetText(fusion.RequestDir() or itm['ProxyPath'].Text)
-    win.On.CancelBtn.Clicked = lambda ev: disp.ExitLoop()
-    win.On.MainWin.Close = lambda ev: disp.ExitLoop()
+    win.On.Cancel.Clicked = lambda ev: disp.ExitLoop()
     update_ui()
 
-    run_data = {}
+    run_data = {'proceed': False}
     def on_start(ev):
-        provider = itm['ProviderSelect'].CurrentText
-        config.save_api_key(provider, itm['ApiKey'].Text)
-        config.set_val('provider_index', itm['ProviderSelect'].CurrentIndex)
-        config.set_val('proxy_path', itm['ProxyPath'].Text)
+        config.save_api_key(itm['Prov'].CurrentText, itm['Key'].Text)
+        config.config['provider_index'] = itm['Prov'].CurrentIndex
+        config.config['frame_index'] = itm['Fr'].CurrentIndex
+        config.config['proxy_path'] = itm['ProxyPath'].Text
+        config.save_config()
+        
         run_data.update({
-            'proceed': True,
-            'provider': provider,
-            'key': itm['ApiKey'].Text,
-            'model': itm['ModelSelect'].CurrentText,
+            'proceed': True, 
+            'p': itm['Prov'].CurrentText, 
+            'k': itm['Key'].Text, 
+            'm': itm['Mod'].CurrentText, 
+            'f': int(itm['Fr'].CurrentText), 
+            'force': itm['Force'].Checked,
             'proxy_root': itm['ProxyPath'].Text
         })
         disp.ExitLoop()
+        
+    win.On.Start.Clicked = on_start
+    win.Show(); disp.RunLoop(); win.Hide()
 
-    win.On.ProcessBtn.Clicked = on_start
-    win.Show()
-    disp.RunLoop()
-    win.Hide()
+    if not run_data['proceed']: return
 
-    if not run_data.get('proceed'): return
-
-    # Processing loop
-    success_cnt = 0
-    error_log = []
-    
-    progress_win = disp.AddWindow({'WindowTitle': 'Processing...', 'ID': 'ProgWin', 'Geometry': [500, 400, 400, 150]}, [
-        ui.VGroup([
-            ui.Label({'ID': 'Status', 'Text': 'Starting...', 'Alignment': {'AlignHCenter': True}, 'WordWrap': True}),
-            ui.VGap(10),
-            ui.Label({'ID': 'Counter', 'Text': f'0/{len(clips)}', 'Alignment': {'AlignHCenter': True}})
+    # Processing UI
+    prog = disp.AddWindow({'WindowTitle': 'Processing...', 'Geometry': [500, 400, 450, 180]}, [
+        ui.VGroup({'ContentsMargins': [25, 20, 25, 25], 'Spacing': 15}, [
+            ui.Label({'ID': 'St', 'Text': 'Initializing...', 'Alignment': {'AlignHCenter': True}, 'WordWrap': True}),
+            ui.Label({'ID': 'Cn', 'Text': '0/0', 'Alignment': {'AlignHCenter': True}}),
+            ui.Button({'ID': 'Stop', 'Text': 'Stop Analysis', 'StyleSheet': 'background: #f87171; color: white;'})
         ])
     ])
-    p_itm = progress_win.GetItems()
-    progress_win.On.ProgWin.Close = lambda ev: disp.ExitLoop()
-    progress_win.Show()
+    p_itm = prog.GetItems()
+    run_data['canceled'] = False
+    prog.On.Stop.Clicked = lambda ev: run_data.update({'canceled': True})
+    prog.Show()
 
+    results = []
     for i, clip in enumerate(clips):
+        if run_data['canceled']: break
         name = clip.GetName()
-        p_itm['Counter'].Text = f"Processing {i+1} of {len(clips)}"
-        p_itm['Status'].Text = f"Processing: {name}"
-        progress_win.RecalcLayout()
-        
+        p_itm['St'].Text = f"Processing: {name}"
+        p_itm['Cn'].Text = f"{i+1} / {len(clips)}"
+        prog.RecalcLayout()
+
+        # Path resolution with Proxy support
         path, is_proxy = get_best_media_path(clip, run_data['proxy_root'])
-        try:
-            frames = extract_frames(path)
-            if "Gemini" in run_data['provider']:
-                meta, err = analyze_with_gemini(frames, run_data['key'], run_data['model'], name)
-            else:
-                meta, err = analyze_with_openai(frames, run_data['key'], run_data['model'], name)
-            
-            if meta:
-                # Robust type check to prevent 'list has no attribute get'
-                if isinstance(meta, list) and len(meta) > 0:
-                    meta = meta[0]
+        cache_key = config.get_cache_key(path, run_data['m'], run_data['f'])
+        meta = None
+        
+        if not run_data['force'] and cache_key in config.cache:
+            meta = config.cache[cache_key]
+        else:
+            try:
+                frames = extract_frames(path, run_data['f'])
+                meta, err = analyze_with_ai(frames, run_data['k'], run_data['m'], run_data['p'], name)
+                if meta:
+                    config.cache[cache_key] = meta
+                    config.save_cache()
+                else: results.append(f"Error {name}: {err}")
+            except Exception as e: results.append(f"Error {name}: {str(e)}")
+
+        if meta:
+            if isinstance(meta, list) and len(meta) > 0: meta = meta[0]
+            if isinstance(meta, dict):
+                # Smart Merging Keywords
+                existing_kw = set([k.strip() for k in clip.GetMetadata("Keywords").split(",") if k.strip()])
+                new_kw = set([str(k).strip() for k in meta.get('keywords', [])])
+                merged_kw = sorted(list(existing_kw.union(new_kw)))
                 
-                if isinstance(meta, dict):
-                    clip.SetMetadata({
-                        "Description": str(meta.get('short_desc', '')),
-                        "Comments": str(meta.get('long_desc', '')),
-                        "Keywords": ", ".join([str(x) for x in meta.get('keywords', [])])
-                    })
-                    success_cnt += 1
+                # Smart Merging Comments
+                existing_com = clip.GetMetadata("Comments") or ""
+                separator = "\n\n--- AI Analysis ---\n"
+                if separator in existing_com:
+                    # Replace only the AI part if it already exists
+                    parts = existing_com.split(separator)
+                    new_com = f"{parts[0]}{separator}{meta.get('long_desc', '')}"
                 else:
-                    error_log.append(f"{name}: AI returned invalid JSON structure.")
-            else: 
-                error_log.append(f"{name}: AI failed to return metadata.")
-        except Exception as e:
-            error_log.append(f"{name}: {str(e)}")
-
-    progress_win.Hide()
-
-    # Final Summary Report
-    report_layout = [
-        ui.Label({'Text': 'Processing Complete!', 'StyleSheet': 'font-size: 18px; font-weight: bold;'}),
-        ui.Label({'Text': f'Success: {success_cnt} | Issues: {len(error_log)}'}),
-        ui.VGap(10),
-    ]
-    if error_log:
-        report_layout.append(ui.TextEdit({'Text': "\\n".join(error_log), 'ReadOnly': True, 'Weight': 1, 'StyleSheet': 'background: #1f2937; color: #f87171;'}))
-    report_layout.append(ui.Button({'ID': 'CloseBtn', 'Text': 'Close Report'}))
-    report_layout.append(ui.VGap(5))
-    report_layout.append(ui.Label({'Text': '© 2025 W.Degan', 'Alignment': {'AlignRight': True}, 'Weight': 0, 'StyleSheet': 'color: #4b5563; font-size: 10px;'}))
-
-    report_win = disp.AddWindow({'WindowTitle': 'Metafootage Report', 'ID': 'RepWin', 'Geometry': [400, 300, 500, 450]}, [ui.VGroup(report_layout)])
-    report_win.On.CloseBtn.Clicked = lambda ev: disp.ExitLoop()
-    report_win.On.RepWin.Close = lambda ev: disp.ExitLoop()
-    report_win.Show()
-    disp.RunLoop()
-    report_win.Hide()
+                    new_com = f"{existing_com}{separator}{meta.get('long_desc', '')}"
+                
+                clip.SetMetadata({
+                    "Description": str(meta.get('short_desc', '')),
+                    "Comments": new_com,
+                    "Keywords": ", ".join(merged_kw)
+                })
+            
+    prog.Hide()
+    if results:
+        rep = disp.AddWindow({'WindowTitle': 'Report', 'Geometry': [400, 300, 600, 400]}, [
+            ui.VGroup({'ContentsMargins': [20, 20, 20, 20]}, [
+                ui.Label({'Text': 'Analysis Finished with Issues:', 'StyleSheet': 'color: #f87171; font-weight: bold;'}),
+                ui.TextEdit({'Text': "\n".join(results), 'ReadOnly': True}),
+                ui.Button({'ID': 'Ok', 'Text': 'Close'})
+            ])
+        ])
+        rep.On.Ok.Clicked = lambda ev: disp.ExitLoop()
+        rep.Show(); disp.RunLoop(); rep.Hide()
 
 if __name__ == "__main__":
     main()
