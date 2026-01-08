@@ -3,7 +3,7 @@
 
 Metafootage is a lightweight **DaVinci Resolve scripting plugin** that analyzes video clips using **Google Gemini** or **OpenAI** and automatically generates rich, editorially useful metadata.
 
-It’s designed to save time on long-form projects by turning raw footage into searchable, human-readable clips—without changing your editing workflow.
+![Metafootage UI](media/metafootage-ui.png)
 
 ---
 
@@ -17,7 +17,7 @@ Select clips in the Media Pool → run Metafootage → it:
 - writes results directly into Resolve’s metadata fields  
 - merges with existing keywords instead of overwriting them  
 
-The goal is **editorial clarity**, not generic computer-vision labels.
+![Metafootage demo](media/metafootage-demo-2.gif)
 
 ---
 
