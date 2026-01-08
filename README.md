@@ -1,8 +1,6 @@
 # Metafootage – AI-Powered Metadata for DaVinci Resolve
 
-Metafootage is a lightweight **DaVinci Resolve scripting plugin** that uses Google’s Gemini Vision API or OpenAI to analyze video clips and automatically generate rich, cinematic metadata.
-
-It turns unlogged clips into searchable, organized assets by writing AI-generated descriptions and keywords directly into Resolve’s metadata fields.
+A lightweight **DaVinci Resolve scripting plugin** that uses Google’s Gemini Vision API or OpenAI to analyze video clips and automatically generate rich metadata.
 
 ## User Interface
 
@@ -15,38 +13,40 @@ It turns unlogged clips into searchable, organized assets by writing AI-generate
 
 ---
 
-## Why I Made This
+## What it does
 
-I built Metafootage while working on long-form documentary projects.
+Select clips in the Media Pool → run Metafootage → it:
+- extracts a few representative frames per clip
+- asks your chosen AI model to describe what’s happening (subject, action, lighting, camera movement, mood, setting)
+- writes the results back into Resolve’s metadata fields
+- merges with existing notes/keywords instead of nuking them
+---
 
-When you’re dealing with dozens or hundreds of clips, writing descriptions and keywords by hand quickly becomes a bottleneck and pulls focus away from the edit itself.
+## Key capabilities
 
-The idea is to automate that step so you can spend time thinking about the story, not labeling files.
+### Cinematic analysis
+Describes more than “a person in a room” — it’s aimed at editorial usefulness: action, framing, motion, mood, environment.
+
+### Smart metadata merging
+Keeps your existing tags/notes and appends new metadata instead of overwriting.
+
+### Model selection
+Use a fast/cheap model for bulk bins, or a higher-quality model for hero moments.
+
+### RAW-friendly via proxies
+Works cleanly with RAW formats by analyzing proxy media when FFmpeg can’t decode the RAW source. 
+
+### Privacy-conscious
+Metafootage doesn’t store your frames beyond what it needs to send the request. (Your AI provider’s retention/logging policies still apply.)
 
 ---
 
-## Key Capabilities
+## Requirements
 
-### Cinematic analysis
-
-Extracts representative frames from each clip and generates detailed descriptions covering lighting, camera movement, subject action, emotion, and setting.
-
-### Smart metadata merging
-
-Preserves any existing keywords or notes on your clips and appends new AI-generated metadata instead of overwriting your work.
-
-### Model selection
-
-Supports faster, lower-cost analysis for b-roll and dailies, as well as higher-quality reasoning for hero shots and complex scenes.
-
-### Works with RAW formats and proxies
-
-Supports RAW formats such as **BRAW**, **R3D**, and **ARRIRAW** by analyzing associated proxy media. You can optionally specify a proxy root directory in the UI, allowing the tool to locate and analyze proxy files when working with RAW footage.
-That’s the cleanest and most honest version.
-
-### Privacy-conscious
-
-Frames are sent directly to the Gemini or OpenAI API for analysis. No footage is stored or retained by Metafootage beyond the API request.
+- DaVinci Resolve (Studio or Free)
+- Python (Resolve scripting)
+- FFmpeg (frame extraction)
+- A Google Gemini API key **or** an OpenAI API key
 
 ---
 
@@ -70,7 +70,7 @@ This package is intentionally minimal.
 * **DaVinci Resolve** (Studio or Free)
 * **Python 3.6+** (used by Resolve scripting)
 * **FFmpeg** (used to extract frames from clips)
-* **Google Gemini API key**
+* **Google Gemini API key or OPen**
 
 ---
 
@@ -129,18 +129,6 @@ apt install ffmpeg
 
 5. On first run, you will need to to enter your **Gemini or Open API key**.
    The key is stored locally on your machine.
-
----
-
-## How It Works
-
-1. Metafootage extracts a small number of representative frames from each selected clip.
-2. Frames are sent to the Gemini Vision or OpenAI API for analysis.
-3. The AI returns structured descriptions and keywords.
-4. Metadata is written directly into Resolve’s clip metadata fields.
-5. Existing metadata is preserved and augmented—not overwritten.
-
-Once processed, clips become instantly searchable using Resolve’s metadata filters.
 
 ---
 
