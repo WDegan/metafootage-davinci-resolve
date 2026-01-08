@@ -131,7 +131,7 @@ Metafootage does **not** transmit or store API keys anywhere else.
 
 ## Contributing
 
-If this tool saved you time, contributions and improvements are welcome—but never expected.
+If this tool saved you time, contributions or donations are welcome, but not expected.
 
 ---
 
