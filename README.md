@@ -16,7 +16,7 @@ Select clips in the Media Pool → run Metafootage → it:
 - generates cinematic descriptions (action, setting, lighting, camera feel)  
 - writes results directly into Resolve’s metadata fields  
 - merges with existing keywords instead of overwriting them  
-![Metafootage demo](media/metafootage-demo-2.gif)
+![Metafootage demo](media/metafootage-demo.gif)
 ![Metafootage demo](media/metafootage-demo-2.gif)
 
 ---
