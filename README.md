@@ -24,7 +24,7 @@ Select clips in the Media Pool → run Metafootage → it:
 ## Key features
 
 ### Cinematic descriptions  
-Descriptions are written for editors, not machines—focused on what’s happening in the shot and how it looks and feels during a real cut.
+Descriptions are written for editors. focused on what’s happening in the shot and how it looks and feels during a real cut.
 
 ### Adjustable frame sampling  
 Choose how many frames per clip are analyzed (3, 5, or 7) to balance speed, cost, and descriptive depth.
